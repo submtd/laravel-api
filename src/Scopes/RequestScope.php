@@ -5,6 +5,7 @@ namespace Submtd\LaravelApi\Scopes;
 use Illuminate\Database\Eloquent\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class RequestScope implements Scope
 {
@@ -24,45 +25,75 @@ class RequestScope implements Scope
             return;
         }
         foreach ($filters as $field => $filter) {
-            if (strpos($filter, '|')) {
-                $operator = $this->parseOperator(substr($filter, 0, strpos($filter, '|')));
-                $builder->where($field, $operator, substr($filter, strpos($filter, '|') + 1));
-            } elseif (strpos($filter, ',')) {
-                $values = explode(',', $filter);
-                $builder->whereIn($field, $values);
-            } else {
-                $builder->where($field, $filter);
-            }
+            $this->parseFilter($builder, $field, $filter);
         }
     }
 
-    protected function parseOperator($operator)
+    protected function parseFilter($builder, $field, $filter)
     {
+        $filters = explode(',', $filter);
+        $builder->where(function ($query) use ($field, $filters) {
+            foreach ($filters as $filter) {
+                $parsed = $this->parseOperator($filter);
+                $query->orWhere($field, $parsed['operator'], $parsed['value']);
+            }
+        });
+    }
+
+    protected function parseOperator($filter)
+    {
+        if (!Str::contains($filter, '|')) {
+            return [
+                'operator' => '=',
+                'value' => $filter,
+            ];
+        }
+        $operator = Str::before($filter, '|');
+        $value = Str::after($filter, '|');
         switch ($operator) {
             case 'lt':
-                return '<';
-                break;
+                return [
+                    'operator' => '<',
+                    'value' => $value,
+                ];
             case 'lte':
-                return '<=';
-                break;
+                return [
+                    'operator' => '<=',
+                    'value' => $value,
+                ];
             case 'gt':
-                return '>';
-                break;
+                return [
+                    'operator' => '>',
+                    'value' => $value,
+                ];
             case 'gte':
-                return '>=';
-                break;
+                return [
+                    'operator' => '>=',
+                    'value' => $value,
+                ];
             case 'ne':
-                return '<>';
-                break;
+                return [
+                    'operator' => '<>',
+                    'value' => $value,
+                ];
             case 'bt':
-                return 'between';
-                break;
+                return [
+                    'operator' => 'between',
+                    'value' => [
+                        Str::before($value, ';'),
+                        Str::after($value, ';'),
+                    ],
+                ];
             case 'like':
-                return 'like';
-                break;
+                return [
+                    'operator' => 'like',
+                    'value' => '%' . $value . '%',
+                ];
             default:
-                return '=';
-                break;
+                return [
+                    'operator' => '=',
+                    'value' => $filter,
+                ];
         }
     }
 
