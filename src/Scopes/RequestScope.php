@@ -14,6 +14,7 @@ class RequestScope implements Scope
         $this->parseFilters($builder);
         $this->parseIncludes($builder);
         $this->parseSorts($builder);
+        $this->parseFields($builder);
     }
 
     protected function parseFilters($builder)
@@ -101,6 +102,9 @@ class RequestScope implements Scope
     {
         $includes = request()->get('include');
         foreach (explode(',', $includes) as $include) {
+            if (!$include) {
+                continue;
+            }
             $builder->with($include);
         }
     }
@@ -118,5 +122,19 @@ class RequestScope implements Scope
                 $builder->orderBy($sort);
             }
         }
+    }
+
+    protected function parseFields($builder)
+    {
+        if (!$fields = request()->get('fields')) {
+            return;
+        }
+        $select = [];
+        foreach ($fields as $table => $fields) {
+            foreach (explode(',', $fields) as $field) {
+                $select[] = $table . '.' . $field;
+            }
+        }
+        $builder->select($select);
     }
 }
